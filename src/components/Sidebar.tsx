@@ -1,10 +1,48 @@
-import { useState } from 'react';
-import { Upload, Sofa, PaintBucket, Share2 } from 'lucide-react';
+import { useState, useCallback } from 'react';
+import { Upload, Sofa, PaintBucket, Share2 , CheckCircle} from 'lucide-react';
 import { useStore } from '../store/useStore';
-
+import { useDropzone } from 'react-dropzone';
+import {cn} from '../utils'
+import { Room } from '../types';
 export function Sidebar() {
   const [selectedTab, setSelectedTab] = useState<'upload' | 'furniture' | 'style'>('upload');
   const isLoading = useStore((state) => state.isLoading);
+  const [currentRoom, setCurrentRoom] = useStore((state) => [state.currentRoom, state.setCurrentRoom]);
+  const [isUploaded, setIsUploaded] = useState(false);
+  const onDrop = useCallback((acceptedFiles: File[]) => {
+    const file = acceptedFiles[0];
+    if (!file) return;
+    // Simulate processing the file
+  const reader = new FileReader();
+  reader.onload = () => {
+    const imageUrl = reader.result as string; // Base64 string of the image
+
+    const roomId = `room-${Date.now()}`;
+    const newRoom: Room = {
+      id: roomId,
+      name: file.name.replace(/\.[^/.]+$/, ""), // Use the file name without the extension
+      imageUrl, // Store the base64 string as the room's image
+      style: "Default", // You can set a default style or allow the user to choose later
+      furniture: [], // Initially empty, can be populated later
+      userId: "current-user-id", // Replace with the actual user ID if you have authentication
+      createdAt: new Date().toISOString(), // Current timestamp
+    };
+
+    setCurrentRoom(newRoom); // Update the store with the new room
+  };
+
+  reader.readAsDataURL(file); // Read the file as a data URL
+  setIsUploaded(true);
+
+  }, [setCurrentRoom]);
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: {
+      'image/*': ['.jpeg', '.jpg', '.png']
+    },
+    maxFiles: 1
+  });
 
   return (
     <div className="w-80 bg-white h-full border-r border-gray-200 p-4">
@@ -42,13 +80,36 @@ export function Sidebar() {
         <div className="mt-6">
           {selectedTab === 'upload' && (
             <div className="space-y-4">
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-                <Upload className="mx-auto h-12 w-12 text-gray-400" />
-                <p className="mt-2 text-sm text-gray-600">
-                  Drag and drop your room photo here, or click to select
-                </p>
-                <input type="file" className="hidden" accept="image/*" />
-              </div>
+              {/* <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center"> */}
+              <div
+                    {...getRootProps()}
+                    className={cn(
+                      "border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors",
+                      isDragActive ? "border-blue-500 bg-blue-50" : "border-gray-300 hover:border-blue-400"
+                    )}
+                  >
+                <input {...getInputProps()} />
+                {
+                  isUploaded ? (
+                    <>
+                      <CheckCircle className="mx-auto h-12 w-12 text-green-500" />
+                      <p className="text-lg font-medium text-gray-900">File uploaded successfully!</p>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="mx-auto h-12 w-12 text-gray-400" />
+                      <div>
+                        <p className="text-lg font-medium text-gray-900">
+                          Drop your room photo here, or <span className="text-blue-500">browse</span>
+                        </p>
+                        <p className="mt-1 text-sm text-gray-500">
+                          Support for image files only
+                        </p>
+                      </div>
+                    </>
+                )}
+                </div>
+            {/* </div> */}
             </div>
           )}
 
