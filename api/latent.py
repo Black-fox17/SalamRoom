@@ -1,24 +1,43 @@
 import torch
-import cv2
+from PIL import Image
 import numpy as np
-import torchvision.transforms as transforms
-from midas.model_loader import load_model
+import requests
+from transformers import DPTImageProcessor, DPTForDepthEstimation
 
-def estimate_depth(image_path):
-    model_type = "DPT_Large"  # High-quality model
-    model, transform, device = load_model(model_type)
-    
-    image = cv2.imread(image_path)
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    input_image = transform(image).unsqueeze(0).to(device)
-    
-    with torch.no_grad():
-        prediction = model(input_image)
-        depth_map = prediction.squeeze().cpu().numpy()
-    
-    depth_map = (depth_map - depth_map.min()) / (depth_map.max() - depth_map.min())  # Normalize
-    return depth_map
+# Load model and processor
+image_processor = DPTImageProcessor.from_pretrained("Intel/dpt-hybrid-midas")
+model = DPTForDepthEstimation.from_pretrained("Intel/dpt-hybrid-midas", low_cpu_mem_usage=True).eval()
 
-# Example usage
-depth = estimate_depth("uploads/sample_room.jpg")
-cv2.imwrite("uploads/depth_map.jpg", (depth * 255).astype(np.uint8))
+# Move model to GPU if available
+device = "cuda" if torch.cuda.is_available() else "cpu"
+model.to(device)
+
+# Load image
+
+image = Image.open("bear.jpg")
+
+# Prepare input
+inputs = image_processor(images=image, return_tensors="pt").to(device)
+
+# Predict depth
+with torch.no_grad():
+    outputs = model(**inputs)
+    predicted_depth = outputs.predicted_depth
+
+# Resize depth map to match original image
+prediction = torch.nn.functional.interpolate(
+    predicted_depth.unsqueeze(1),
+    size=image.size[::-1],
+    mode="bicubic",
+    align_corners=False,
+)
+
+# Normalize and save depth map
+output = prediction.squeeze().cpu().numpy()
+depth_map = (output - output.min()) / (output.max() - output.min())  # Normalize to 0-1
+depth_image = (depth_map * 255).astype(np.uint8)  # Convert to 0-255
+depth_pil = Image.fromarray(depth_image)
+
+# Save depth image
+depth_pil.save("depth_map.jpg")
+depth_pil.show()
