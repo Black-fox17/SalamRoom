@@ -14,7 +14,7 @@ model.to(device)
 
 # Load image
 
-image = Image.open("bear.jpg")
+image = Image.open("roomimg.webp")
 
 # Prepare input
 inputs = image_processor(images=image, return_tensors="pt").to(device)
